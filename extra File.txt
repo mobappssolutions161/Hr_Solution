@@ -1,0 +1,1240 @@
+
+update permission
+
+--
+
+const updatePermission = async (req, res) => {
+    try {
+        const { role, permissions, staff_id } = req.body;
+
+        // Validate role
+        if (!role) {
+            return res.status(400).json({
+                success: false,
+                message: "Role is required",
+            });
+        }
+
+        // Validate permissions array
+        if (!permissions || !Array.isArray(permissions) || permissions.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Permissions must be a non-empty array",
+            });
+        }
+
+        // Validate staff_id for specific roles
+        if (role === "HR Coordinator" && !staff_id) {
+            return res.status(400).json({
+                success: false,
+                message: `Staff Id is required for role: ${role}`,
+            });
+        }
+
+        // Check if the staff exists if role is HR Coordinator
+        if (role === "HR Coordinator") {
+            const staff = await Admin_and_staffsModel.findOne({ staff_id });
+            if (!staff) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Staff not found with the staff_id: ${staff_id}`,
+                });
+            }
+        }
+
+        // Prepare query for permissions lookup
+        const query = role === "HR Coordinator" ? { role, staff_id } : { role };
+
+        // Find or create permission document
+        let permissionDoc = await permissionModel.findOne(query);
+
+        if (!permissionDoc) {
+            // Create a new document if none exists
+            const formattedPermissions = permissions.map(({ endpoint, allow }) => ({ endpoint, permission: allow ? 1 : 0 }));
+            await permissionModel.create({ role, staff_id, permissions: formattedPermissions });
+        } else {
+            // Update existing document with new permissions
+            const existingEndpoints = permissionDoc.permissions.map(p => p.endpoint);
+
+            permissions.forEach(({ endpoint, allow }) => {
+                const existingPermission = permissionDoc.permissions.find(p => p.endpoint === endpoint);
+                if (existingPermission) {
+                    // Update existing endpoint's permission
+                    existingPermission.permission = allow ? 1 : 0;
+                } else {
+                    // Add new endpoint
+                    permissionDoc.permissions.push({ endpoint, permission: allow ? 1 : 0 });
+                }
+            });
+
+            await permissionDoc.save();
+        }
+
+        // Successful response
+        res.status(200).json({
+            success: true,
+            message: "Permissions updated successfully",
+        });
+    } catch (error) {
+        // Error response
+        res.status(500).json({
+            success: false,
+            message: "Server error",
+            error_message: error.message,
+        });
+    }
+};
+
+
+
+// Add permission
+
+object ---
+
+const add_endPoints = async (req, res) => {
+    try {
+        const { endpoints, staff_id } = req.body;
+
+        // Define roles
+        const roles = ['Admin', 'Receptionist', 'Manager', 'Hr Cordinator'];
+
+        for (const role of roles) {
+            const permissions = {};
+
+            // Assign default permission (1) for each endpoint
+            endpoints.forEach(endpoint => {
+                permissions[endpoint] = permissions[endpoint] || 1;
+            });
+
+            if (role === 'Hr Cordinator') {
+                // HR Coordinator-specific logic
+                if (!staff_id) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'staff_id is required for HR Coordinator role.',
+                    });
+                }
+
+                // Find if an entry exists for this role and staff_id
+                const existingPermission = await permissionModel.findOne({ role, staff_id });
+
+                if (!existingPermission) {
+                    // Create a new document for HR Coordinator with staff_id
+                    await permissionModel.create({ role, staff_id, permissions });
+                } else {
+                    // Update existing permissions for the specific staff_id
+                    await permissionModel.updateOne(
+                        { role, staff_id },
+                        { $set: { permissions } }
+                    );
+                }
+            } else {
+                // Logic for other roles without staff_id
+                const existingPermission = await permissionModel.findOne({ role });
+
+                if (!existingPermission) {
+                    // Create a new document for the role
+                    await permissionModel.create({ role, permissions });
+                } else {
+                    // Update permissions for the entire role
+                    await permissionModel.updateOne(
+                        { role },
+                        { $set: { permissions } }
+                    );
+                }
+            }
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Endpoints added successfully.',
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to add/update permissions.',
+            error: error.message,
+        });
+    }
+};
+
+-------------------------
+
+Array --
+
+const permissionModel = require('../model/permission_model');
+
+const role_Check = (requiredEndpoint) => async (req, res, next) => {
+    try {
+        const userRole = req.user.role; 
+        const staffId = req.user.staff_id; 
+
+        if (userRole === 'Super Admin') {
+            // Check permissions for Super Admin
+            const permission = await permissionModel.findOne({ role: userRole });
+
+            if (!permission || !permission.permissions.includes(requiredEndpoint)) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Dear ${userRole}, You are not authorized to access this section!`,
+                });
+            }
+        } else if (userRole === 'HR Coordinator') {
+            // Check permissions for HR Coordinator
+            const permission = await permissionModel.findOne({ role: userRole, staff_id: staffId });
+
+            if (!permission || !permission.permissions.includes(requiredEndpoint)) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Dear ${userRole}, You are not authorized to access this section!`,
+                });
+            }
+        } else {
+            // Handle unknown roles
+            return res.status(400).json({
+                success: false,
+                message: 'Role not recognized!',
+            });
+        }
+
+        next(); // Proceed to the next middleware or route handler
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({
+            success: false,
+            message: 'Server Error',
+            error: error.message,
+        });
+    }
+};
+
+module.exports = role_Check;
+
+
+
+
+
+
+
+
+
+// Add multiple Skills
+
+const addJob_skills = async (req, res) => {
+  const { jobTitle, skill_Names } = req.body; // 'skill_Names' is an array of skills
+
+  try {
+    const requiredFields = ["jobTitle", "skill_Names"];
+
+    // Check for required fields
+    for (const field of requiredFields) {
+      if (!req.body[field]) {
+        return res.status(400).json({
+          message: `Missing ${field.replace("_", " ")} field`,
+          success: false,
+        });
+      }
+    }
+
+    // Validate that skill_Names is an array
+    if (!Array.isArray(skill_Names) || skill_Names.length === 0) {
+      return res.status(400).json({
+        message: "skill_Names should be a non-empty array",
+        success: false,
+      });
+    }
+
+    // Check if any of the skills already exist
+    for (const skill_Name of skill_Names) {
+      const existskill_Name = await jobSkills_Model.findOne({
+        jobTitle: jobTitle,
+        skill_Name: skill_Name,
+      });
+
+      if (existskill_Name) {
+        return res.status(400).json({
+          message: `${skill_Name} already exists`,
+          success: false,
+        });
+      }
+    }
+
+    // Create and save the new skills
+    const newSkills = skill_Names.map((skill_Name) => {
+      return new jobSkills_Model({
+        jobTitle: jobTitle,
+        skill_Name: skill_Name,
+      });
+    });
+
+    const savedSkills = await jobSkills_Model.insertMany(newSkills);
+
+    return res.status(200).json({
+      success: true,
+      message: `${skill_Names.join(", ")} added successfully`,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error_message: error,
+    });
+  }
+};
+
+
+
+
+
+
+const getJobsForEmployee = async (empId, packageActiveDate, packageEndDate) => {
+  const jobs = await JobModel.find({
+    empId: empId, // Match the employee ID
+    createdAt: {
+      $gte: packageActiveDate, // Jobs posted after or on package_active_date
+      $lte: packageEndDate, // Jobs posted before or on package_end_date
+    },
+  });
+  return jobs;
+};
+
+
+
+
+
+
+
+const addPsychometricPersonalityTest = async (req, res) => {
+    try {
+        const { question, options, correctAnswerIndex } = req.body;
+
+        // Validate that the question is provided and is a non-empty string
+        if (!question || typeof question !== 'string') {
+            return res.status(400).json({
+                success: false,
+                message: 'Question is required and must be a non-empty string'
+            });
+        }
+
+        // Validate that options array is provided and contains exactly 5 valid strings
+        if (!Array.isArray(options) || options.length !== 5 || !options.every(opt => ["Strongly Agree", "Agree", "Neutral", "Disagree", "Strongly Disagree"].includes(opt))) {
+            return res.status(400).json({
+                success: false,
+                message: 'Options array must contain exactly 5 valid strings: "Strongly Agree", "Agree", "Neutral", "Disagree", "Strongly Disagree"'
+            });
+        }
+
+        // Validate that correctAnswerIndex is provided, is a number, and is within the range 0-4
+        if (typeof correctAnswerIndex !== 'number' || correctAnswerIndex < 0 || correctAnswerIndex > 4) {
+            return res.status(400).json({
+                success: false,
+                message: 'Correct answer index must be a number between 0 and 4'
+            });
+        }
+
+        // Check if the question already exists in the database
+        const existingQuestion = await PsychometricPersonalityTestModel.findOne({ question });
+        if (existingQuestion) {
+            return res.status(400).json({
+                success: false,
+                message: 'Question already exists'
+            });
+        }
+
+        // Create a new psychometric personality test question
+        const newPsychometricQuestion = new PsychometricPersonalityTestModel({
+            question,
+            options,
+            correctAnswerIndex
+        });
+
+        // Save the new question to the database
+        await newPsychometricQuestion.save();
+
+        return res.status(200).json({
+            success: true,
+            message: 'Psychometric personality test question added successfully',
+            psychometric: newPsychometricQuestion
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error_message: error.message
+        });
+    }
+};
+
+
+---------------------------------------------------------   
+
+
+
+const calculate_EOSB = async (req, res) => {
+    try {
+        let { contract_start_Date, Employment_end_Date, EOSB_days_per_year = 0, untilized_leave_days = 0, Basic_pay } = req.body;
+
+        // Check for required fields
+        if (!contract_start_Date) {
+            return res.status(400).json({
+                success: false,
+                message: 'contract_start_Date required'
+            });
+        }
+        if (!Employment_end_Date) {
+            return res.status(400).json({
+                success: false,
+                message: 'Employment_end_Date required'
+            });
+        }
+        if (!Basic_pay) {
+            return res.status(400).json({
+                success: false,
+                message: 'Basic_pay required'
+            });
+        }
+
+        // Convert contract_start_Date and Employment_end_Date to Date objects
+        const startDate = new Date(contract_start_Date);
+        const endDate = new Date(Employment_end_Date);
+
+        // Calculate the number of months between the dates
+        const totalMonths = (endDate.getFullYear() - startDate.getFullYear()) * 12 + (endDate.getMonth() - startDate.getMonth());
+
+        // Calculate the number of full years
+        const fullYears = Math.floor(totalMonths / 12);
+
+        // Calculate the number of additional months beyond the full years
+        const additionalMonths = totalMonths % 12;
+
+        // Apply the custom logic for partial years
+        let partialYear = 0;
+        if (additionalMonths >= 6) {
+            partialYear = 1;
+        } else if (additionalMonths >= 3) {
+            partialYear = 0.5;
+        }
+
+        // Calculate the total years served
+        const totalYearsServed = fullYears + partialYear;
+
+        // Round up years served to the nearest two decimal places
+        const rounded_year_served = Math.round(totalYearsServed * 100) / 100;
+
+        // Check for year served eligibility
+        if (rounded_year_served < 1) {
+            return res.status(400).json({
+                success: false,
+                message: 'You are not eligible for end of service benefit pay.'
+            });
+        }
+
+        // Calculate gross EOSB
+        const EOSB = Math.round((Basic_pay * EOSB_days_per_year * rounded_year_served) / 22);
+
+        // Calculate payment for unutilized leave days
+        const payment_for_unutilized_leave_days = Math.round((Basic_pay / 22) * untilized_leave_days);
+
+        // Calculate gross salary
+        const gross_salary = EOSB + payment_for_unutilized_leave_days;
+
+        // Calculate tax on EOSB
+        let tax_on_EOSB = 0;
+        if (gross_salary > 50000) {
+            tax_on_EOSB = Math.round((gross_salary - 50000) * 0.05);
+        }
+
+        // Calculate net EOSB
+        const net_EOSB = gross_salary - tax_on_EOSB;
+
+        // Function to add thousand separators
+        const formatNumber = num => new Intl.NumberFormat('en-US').format(num);
+
+        // Return the calculated values
+        return res.status(200).json({
+            success: true,
+            message: 'Calculation successful',
+            data: {
+                contract_start_Date,
+                Employment_end_Date,
+                year_served: rounded_year_served,
+                EOSB_days_per_year,
+                Basic_salary: `SLE ${formatNumber(Basic_pay)}`,
+                Gross_EOSB: `SLE ${formatNumber(EOSB)}`,
+                tax_on_EOSB: `SLE ${formatNumber(tax_on_EOSB)}`,
+                net_EOSB: `SLE ${formatNumber(net_EOSB)}`
+            }
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error_message: error.message
+        });
+    }
+};
+
+
+
+
+
+
+User Authentication and Authorization:
+
+								User Schema
+							---------------------------
+
+{
+  "_id": ObjectId,
+  "username": String,
+  "email": String,
+  "password": String,
+  "role": String
+}
+
+
+Connections: Users will be authenticated and authorized based on their roles. For example, administrators will have access to all functionalities, while regular users may have restricted access.
+
+							Job Postings Website
+						  ---------------------------------
+
+
+{
+  "_id": ObjectId,
+  "title": String,
+  "description": String,
+  "requirements": String,
+  "deadline": Date,
+  "applicants": [ObjectId],
+  "status": String
+}
+
+Connections: Users with appropriate permissions (e.g., HR managers) can create, update, and manage job postings. The "applicants" field references the IDs of applicants who have applied for the job.
+Applicant Tracking System (ATS):
+
+							Applicant Schema
+						 ------------------------------
+
+{
+  "_id": ObjectId,
+  "name": String,
+  "email": String,
+  "phone": String,
+  "gender": String,
+  "cv": String,
+  "applied_jobs": [ObjectId],
+  "status": String
+}
+
+Connections: The "applied_jobs" field in the Applicant schema connects to the IDs of job postings to which the applicant has applied.
+Self-Generated JDs and KPIs:
+
+							JD/KPI Schema
+						------------------------------
+
+{
+  "_id": ObjectId,
+  "job_title": String,
+  "department": String,
+  "job_description": String,
+  "key_performance_indicators": [String],
+  "created_by": ObjectId,
+  "created_at": Date,
+  "updated_at": Date
+}
+
+Connections: Users can create and manage JDs/KPIs, which can be referenced when creating job postings or evaluating employee performance.
+CV Database for Females Only:
+
+								CV Schema
+							--------------------------
+
+{
+  "_id": ObjectId,
+  "applicant_id": ObjectId,
+  "cv": String,
+  "profile": String,
+  "created_at": Date,
+  "updated_at": Date
+}
+
+Connections: The "applicant_id" field links each CV to the respective applicant, ensuring that only authorized users can access CVs of female candidates.
+
+								Services Page
+							     --------------------
+
+
+
+{
+  "_id": ObjectId,
+  "title": String,
+  "description": String,
+  "category": String
+}
+
+Connections: This schema represents various HR consultancy services offered by Smart Start SL Ltd, which can be displayed on the services page of the web application.
+
+							Psychometric Testing Integration
+						     -----------------------------------------
+
+{
+  "_id": ObjectId,
+  "title": String,
+  "description": String,
+  "questions": [String],
+  "results": [String]
+}
+
+Connections: This schema manages psychometric tests, which can be assigned to applicants during the recruitment process. Results can be stored for analysis.
+
+
+Basic Labour Law Computations:
+
+No separate schema required. These computations can be implemented as functions or modules within the backend application.
+Overall, users with appropriate permissions will interact with the system to manage job postings, track applicants, create JDs/KPIs, access CVs of female candidates, display HR services, and administer psychometric tests. The connections between schemas facilitate data flow and ensure seamless integration of various functionalities within the web application.
+
+
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+To enhance your company CRM with the described functionalities, you can consider the following:
+
+Company Registration and Job Posting Section:
+
+Create a module where companies can register and post their job openings.
+Design a form for companies to input details such as job title, description, requirements, deadline, etc.
+Upon submission, store this information in a separate database collection for job postings.
+Hiring Process Management:
+
+Implement a dashboard for super admin and staff members to view and manage job postings from various companies.
+Allow super admin and staff members to schedule interviews, track candidate progress, and manage the hiring process.
+Include features for communication with companies and job seekers, such as messaging and email notifications.
+Staff Management:
+
+Create a module for adding and managing staff members, including HR personnel and supporting teams.
+Assign roles and permissions to staff members based on their responsibilities.
+Develop functionalities for task assignment, tracking, and collaboration among staff members.
+Job Seeker Section:
+
+Provide a platform for job seekers to create profiles, browse job listings, and apply for positions.
+Enable communication between job seekers and staff members for assistance and guidance in the job search process.
+Implement features for scheduling interviews, coordinating with companies, and providing feedback to job seekers.
+Integration and Data Management:
+
+Ensure seamless integration of all sections within the CRM to streamline workflow and data management.
+Implement robust data security measures to protect sensitive information of companies and job seekers.
+Design reporting and analytics tools to track the performance of job postings, hiring processes, and staff productivity.
+User Interface and Experience:
+
+Focus on creating an intuitive and user-friendly interface for easy navigation and interaction.
+Incorporate features for customization and personalization to meet the specific needs of your company and clients.
+Conduct user testing and gather feedback to continuously improve the CRM's usability and effectiveness.
+By incorporating these functionalities into your company CRM, you can efficiently manage job postings, hiring processes, staff members, and interactions with both companies and job seekers. This comprehensive solution will help streamline operations, enhance communication, and ultimately drive success for your IT consultancy.
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+		-    |
+staff section =>    |
+--------------------
+
+Understood, you're looking for a streamlined team to handle various aspects of your IT consultancy's operations. Here's a suggested team structure with roles that align with your requirements:
+
+HR Coordinator:
+------------------
+
+Communicates with multiple companies' HR departments to understand their hiring needs.
+Coordinates with job seekers, collects resumes/CVs, and schedules interviews based on company requirements.
+Manages the recruitment process, including candidate screening, interview coordination, and feedback collection.
+
+Finance and Operations Manager:
+----------------------------------
+Manages all financial transactions, including invoicing companies and collecting payments.
+Handles billing for services rendered to clients and manages accounts receivable.
+Oversees budgeting, financial planning, and expense management for the consultancy.
+
+Recruitment and Placement Specialist:
+-------------------------------------
+Coordinates interview rounds and manages candidate responses from companies.
+Communicates with job seekers regarding interview outcomes, rejections, offers, and next steps.
+Maintains records of candidate progress and ensures a smooth transition from interview to placement.
+
+Client Relationship Manager:
+------------------------------
+Builds and maintains relationships with client companies, ensuring their needs are met and addressing any concerns.
+Acts as the primary point of contact for client queries, feedback, and requests.
+Identifies opportunities for upselling services and expanding business with existing clients.
+
+Administrative Coordinator:
+---------------------------
+Provides administrative support to the team, including managing schedules, organizing meetings, and handling correspondence.
+Assists with documentation, filing, and record-keeping related to client engagements and internal operations.
+Coordinates logistics for events, workshops, and other client-facing activities.
+
+Marketing and Communications Specialist:
+----------------------------------------
+Develops marketing strategies to promote the consultancy's services and attract clients and job seekers.
+Manages digital marketing campaigns, social media channels, and website content.
+Creates marketing materials, presentations, and proposals for client pitches and business development initiatives.
+
+Training and Development Coordinator:
+---------------------------------------
+Designs and delivers training programs for staff members to enhance their skills and knowledge.
+Coordinates professional development opportunities, workshops, and certifications for team members.
+Facilitates knowledge sharing and fosters a culture of continuous learning within the consultancy.
+
+Technical Support Coordinator:
+--------------------------------
+Provides technical support to internal staff members and client companies, addressing IT-related issues and troubleshooting problems.
+Coordinates with external vendors or service providers for IT infrastructure maintenance and support.
+Manages software licenses, subscriptions, and updates to ensure smooth operation of IT systems.
+
+Compliance and Legal Specialist:
+---------------------------------
+Ensures compliance with relevant laws, regulations, and industry standards in all aspects of the consultancy's operations.
+Reviews contracts, agreements, and legal documents related to client engagements and business activities.
+Provides guidance on legal matters, risk management, and data protection to mitigate potential liabilities.
+
+Quality Assurance and Improvement Coordinator:
+------------------------------------------------
+Monitors service quality, client satisfaction, and performance metrics to identify areas for improvement.
+Implements quality assurance processes, standards, and best practices to enhance service delivery.
+Conducts regular reviews, audits, and evaluations to ensure adherence to quality standards and continuous improvement.
+This team structure provides a framework for efficiently managing various aspects of your IT consultancy's operations, from HR and finance to client relations and quality assurance. Adjustments can be made based on the specific needs and priorities of your consultancy.
+
+
+
+
+
+
+
+permissions: ['getAllEmp', 'active_inactive_emp' , 'getJobs_posted_by_employee', 
+                           'get_Female_jobseeker_profile','get_jobseeker_profile' ,
+                           'active_inactive_job', 'getEmployeeDetails' , 'getJobs_posted_by_employee', 
+                            'active_inactive_job' , 
+                        'getAll_Jobs']
+
+  
+const express = require('express');
+const router = express.Router();
+const AppliedJob = require('../models/appliedJobModel');
+
+// Route to update job seeker status based on the action
+router.put('/updateStatus/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { action } = req.body;
+    let status;
+    
+    switch (action) {
+      case 'scheduleInterview':
+        status = 2; // Interview Scheduled
+        break;
+      case 'completeInterview':
+        status = 3; // Interview assesment
+        break;
+      case 'shortlist':
+        status = 4; // complete
+        break;
+      case 'shortlist':
+        status = 5; // Shortlisted
+        break;
+      case 'reject':
+        status = 6; // Rejected
+        break;
+      default:
+        return res.status(400).json({ message: "Invalid action" });
+    }
+
+    const updatedJob = await AppliedJob.findByIdAndUpdate(id, { jobSeeker_status: status }, { new: true });
+    if (!updatedJob) {
+      return res.status(404).json({ message: "Applied job not found" });
+    }
+    res.json(updatedJob);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+module.exports = router;
+
+`````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````
+Admin Panel and Staff Section:
+
+Implement functionality for deleting staff members.
+Add functionality for assigning roles to staff members (e.g., admin, manager, etc.).
+Introduce features for managing departments or teams within the organization.
+Incorporate analytics and reporting features for admin to track staff performance or system usage.
+
+Employee & Job Seekers Section:
+
+Implement a feature for employees to update their resumes or profiles.
+Introduce a feature for job seekers to create and manage their profiles.
+Add functionality for job seekers to save job listings or create job alerts based on their preferences.
+Incorporate a feature for employers to search for and view candidate profiles.
+
+Job Posting Section:
+
+Enhance the job posting form to include more detailed job requirements and qualifications.
+Implement a feature for employers to track the status of job applications and communicate with applicants.
+Add functionality for employers to schedule interviews directly through the platform.
+Introduce a feature for employers to manage and review submitted resumes or applications.
+
+Candidate Recruitment Process:
+
+Expand the candidate recruitment process to include additional stages such as background checks or reference checks.
+Implement automation features for moving candidates through the recruitment process stages.
+Introduce collaboration tools for recruiters and hiring managers to discuss and evaluate candidates.
+Search and Apply Section:
+
+Enhance the job search functionality with advanced filtering options such as salary range, location, or company size.
+Implement a feature for job seekers to track the status of their job applications.
+Introduce a feature for employers to review and manage received job applications efficiently.
+Add functionality for employers to conduct pre-screening assessments or tests as part of the application process.
+
+Security and Authentication:
+
+Implement token-based authentication for improved security.
+Enhance password management features with options for password reset and account recovery.
+Incorporate role-based access control to ensure appropriate access levels for different users.
+
+Notifications and Alerts:
+
+Introduce notifications for important events such as new job postings, application updates, or interview invitations.
+Implement email or SMS alerts for timely communication between employers and job seekers.
+Add options for users to customize their notification preferences.
+
+Documentation and Support:
+
+Provide comprehensive documentation for API endpoints, including example requests and responses.
+Implement a support ticketing system for users to report issues or request assistance.
+Offer user guides or tutorials to help users make the most of the platform's features
+
+
+
+-------------------------------------------------
+
+const active_inactive_job = async (req, res) => {
+    try {
+        const jobId = req.params.jobId;
+
+        // Check for jobId
+        if (!jobId) {
+            return res.status(400).json({
+                success: false,
+                message: 'jobId Required'
+            });
+        }
+
+        // Check for Job existence
+        const job = await jobModel.findOne({
+            _id: jobId
+        });
+
+        if (!job) {
+            return res.status(400).json({
+                success: false,
+                message: 'Job not exist'
+            });
+        }
+
+        let newStatus = 0; // Default to inactive
+
+        // Toggle job status
+        switch (job.status) {
+            case 0:
+                newStatus = 1; // Active
+                break;
+            case 1:
+                newStatus = 2; // Job Requirement Fulfilled
+                break;
+            case 2:
+                newStatus = 0; // Inactive
+                break;
+            default:
+                newStatus = 0; // Default to inactive if not already set
+        }
+
+        // Update job status
+        job.status = newStatus;
+
+        // Save the updated job status
+        await job.save();
+
+        let message = '';
+        switch (newStatus) {
+            case 1:
+                message = 'Activated';
+                break;
+            case 0:
+                message = 'Inactivated';
+                break;
+            case 2:
+                message = 'Job requirement fulfilled';
+                break;
+            default:
+                message = 'Unknown Status';
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: `${message} successfully`,
+            status: newStatus
+        });
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error_message: error.message
+        });
+    }
+};
+
+
+
+
+________________________________________________________
+
+   const { parse, format, eachDayOfInterval } = require('date-fns');
+                                       const e = require('cors')
+                                       
+                                       
+                                               const get_all_client_on_month = async (req, res) => {
+                                                 try {
+                                                        const { month , year } = req.query    
+                                                     
+                                                  if (month && year) {
+                                                         // Handle logic for monthly events
+                                                         const parsedDate = parse(`${month} ${year}`, 'MMM yyyy', new Date());
+                                                         const startDate = new Date(parsedDate.getFullYear(), parsedDate.getMonth(), 1);
+                                                         const endDate = new Date(parsedDate.getFullYear(), parsedDate.getMonth() + 1, 0);
+                                                         const allDatesInMonth = eachDayOfInterval({ start: startDate, end: endDate });
+                                             
+                                                         const eventDetails = [];
+                                                         const created_event_Details = [];
+                                                         const invited_event_details = [];
+                                                         const co_host_event_details = [];
+                                             
+                                                         for (const date of allDatesInMonth) {
+                                                             const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                                                             const formattedDate = `${date.getDate()} ${months[date.getMonth()]}, ${date.getFullYear()}`;
+                                             
+                                                             const events = await eventModel.find({
+                                                                 userId: userId,
+                                                                 'venue_Date_and_time.date': formattedDate,
+                                                             });
+                                                             const co_host_event = await eventModel.find({
+                                                               'co_hosts.phone_no' : user.phone_no ,
+                                                               'venue_Date_and_time.date': formattedDate,
+                                                             })
+                                                               var dateObj = new Date(formattedDate);
+                                       
+                                                             // Extract year, month, and day from the date object
+                                                             var year1 = dateObj.getFullYear();
+                                                             var month1 = (dateObj.getMonth() + 1).toString().padStart(2, '0'); // Adding 1 to month because JavaScript months are zero-based
+                                                             var day1 = dateObj.getDate().toString().padStart(2, '0');
+                                       
+                                                             // Form the desired date string in the format "YYYY-MM-DD"
+                                                             var formattedDates = year1 + "-" + month1 + "-" + day1;
+                                                            
+                                                             const invitedEvents = await InvitedeventModel.find({
+                                                                 'Guests.phone_no': phone_no,
+                                                                 'venue_Date_and_time.date': formattedDates,
+                                                             });
+                                             
+                                                             created_event_Details.push(...events.map(event => ({ ...event._doc, event_type_name: 1 })));
+                                                             invited_event_details.push(...invitedEvents.map(event => ({ ...event._doc, event_type_name: 2 })));
+                                                             co_host_event_details.push(...co_host_event.map(event => ({ ...event._doc, event_type_name: 3 })));
+                                             
+                                             
+                                                             eventDetails.push({
+                                                                 date: formattedDate,
+                                                                 created_eventCount: events.length,
+                                                                 invited_eventCount: invitedEvents.length,
+                                                                 co_host_eventCount: co_host_event.length,
+                                                             });
+                                                         }
+                                                         const allEvents = [...created_event_Details, ...invited_event_details, ...co_host_event_details];
+                                                         return res.status(200).json({
+                                                             success: true,
+                                                             message: 'Event Details',
+                                                             eventDetails: eventDetails,
+                                                             allEvents : allEvents
+                                                         });
+                                                     } else {
+                                                         // Handle case where neither date nor month/year is provided
+                                                         return res.status(200).json({
+                                                             success: false,
+                                                             date_required: 'date or month and year are required',
+                                                         });
+                                                     }
+                                                 } catch (error) {
+                                                     console.error(error);
+                                                     return res.status(500).json({
+                                                         success: false,
+                                                         message: 'Server error',
+                                                     });
+                                                 }
+                                             };
+                                             
+                                       
+
+==========================================================
+
+const getAll_Jobs = async (req, res) => {
+    try {
+        const job_status = req.query.job_status;
+        const filter = {};
+        if (job_status) {
+            filter.status = job_status;
+        }
+
+        // Fetch all jobs
+        const allJobs = await jobModel.find({ ...filter });
+
+        // If no jobs found, return error response
+        if (allJobs.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'No jobs found'
+            });
+        }
+
+        // Map job data to desired format and count job titles
+        const jobTitleCounts = new Map();
+
+        const jobsData = await Promise.all(allJobs.map(async (job) => {
+            // Calculate salary range string
+            const salary_pay = `${job.salary_pay[0].Minimum_pay} - ${job.salary_pay[0].Maximum_pay}, ${job.salary_pay[0].Rate}`;
+
+            // Check if job has expired
+            const today = new Date();
+            const endDate = new Date(job.endDate);
+
+            if (endDate < today) {
+                // Job has expired, send notification
+                try {
+                    await empNotificationModel.create({
+                        empId: job.emp_Id,
+                        message: `Your posted job "${job.job_title}" for company "${job.company_name}" has expired`,
+                        date: today,
+                        status: 1,
+                    });
+                } catch (notificationError) {
+                    console.error('Error creating notification:', notificationError);
+                }
+            }
+
+            // Normalize job title for counting
+            const normalizedTitle = job.job_title.trim().toLowerCase();
+            jobTitleCounts.set(normalizedTitle, (jobTitleCounts.get(normalizedTitle) || 0) + 1);
+
+            // Find candidate details for the job
+            const candidateDetails = await appliedjobModel.find({
+                jobId: job.jobId
+            });
+
+            // Count male and female candidates
+            const maleCandidateCount = candidateDetails.filter(candidate => candidate.gender === 'Male').length;
+            const femaleCandidateCount = candidateDetails.filter(candidate => candidate.gender === 'Female').length;
+
+            // Return formatted job data with candidate counts
+            return {
+                jobId: job.jobId,
+                job_title: job.job_title,
+                company_name: job.company_name,
+                Number_of_emp_needed: job.Number_of_emp_needed,
+                job_type: job.job_type,
+                job_schedule: job.job_schedule,
+                salary_pay: salary_pay,
+                job_Description: job.job_Description,
+                job_Responsibility: job.job_Responsibility || null,
+                company_address: job.company_address,
+                employee_email: job.employee_email,
+                requirement_timeline: job.requirement_timeline,
+                startDate: job.startDate,
+                endDate: job.endDate,
+                phone_no: job.phone_no,
+                key_qualification: job.key_qualification,
+                Experience: job.Experience,
+                template_type: job.template_type,
+                company_Industry: job.company_Industry,
+                job_photo: job.job_photo,
+                status: job.status,
+                empId: job.emp_Id,
+                isPsychometricTest: job.isPsychometricTest,
+                psychometric_Test: job.psychometric_Test,
+                maleCandidateCount: maleCandidateCount,
+                femaleCandidateCount: femaleCandidateCount,
+                fav_status: job.fav_status
+            };
+        }));
+
+        const sortedjobsData = jobsData.sort((a, b) => b.createdAt - a.createdAt);
+
+        // Convert job title counts to an array of objects
+        const jobTitleCountsArray = Array.from(jobTitleCounts.entries()).map(([title, count]) => ({
+            title: title,
+            count: count
+        }));
+
+        // Return successful response with jobs data and job title counts
+        return res.status(200).json({
+            success: true,
+            message: 'All Jobs',
+            JobsCount: allJobs.length,
+            allJobs: sortedjobsData,
+            jobTitleCounts: jobTitleCountsArray
+        });
+    } catch (error) {
+        // Return error response if any error occurs
+        return res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error_message: error.message
+        });
+    }
+};
+
+
+
+
+
+
+and for afrimoney can we use mtn momo ??
+if yes , then please provide below credentials 
+
+for mtn momo -
+       username ,
+       password ,
+    subscriberMsisdn  --> for testing purpose
+      customersecret,
+	customerkey
+        notifUrl ----> by register in webhook.site
+
+for orange payment -
+         username ,
+	 password ,
+	 X-Auth_Token,
+        notifUrl ----> by register in webhook.site,
+        channelUserMsisdn,
+           pin,
+
+for stripe -
+
+          secret key , ( both testing  & live )
+           Public key ( both testing  & live 
+
+
+
+=====================================================
+
+
+
+const CvBuilderModel = require('../models/CvBuilderModel');
+
+const buildCv = async (req, res) => {
+    try {
+        // Destructure the required fields from the request body
+        const {
+            firstName, lastName, city, country, zip, phoneNo, userEmail,
+            jobExperience, education, skills, jobTitleSummary, certificates, 
+            languagesKnown, websitesAndSocialLinks, awardsAndAchievements, templateType
+        } = req.body;
+
+        // Initialize a new CV document with the basic fields
+        let newCv = new CvBuilderModel({
+            firstName,
+            lastName,
+            city,
+            country,
+            zip,
+            phoneNo,
+            userEmail,
+            jobTitleSummary,
+            templateType,
+        });
+
+        // Adding job experience with the validation for isCurrentlyWorking
+        if (jobExperience && jobExperience.length > 0) {
+            jobExperience.forEach(exp => {
+                // If currently working, omit the endDate
+                if (exp.isCurrentlyWorking === 1) {
+                    exp.endDate = undefined;
+                }
+                newCv.jobExperience.push(exp);
+            });
+        }
+
+        // Adding education with the validation for isStillEnrolled
+        if (education && education.length > 0) {
+            education.forEach(edu => {
+                // If still enrolled, omit the end_Date
+                if (edu.graduationDate.isStillEnrolled === 1) {
+                    edu.graduationDate.end_Date = undefined;
+                }
+                newCv.Education.push(edu);
+            });
+        }
+
+        // Adding skills
+        if (skills && skills.length > 0) {
+            skills.forEach(skill => {
+                newCv.skills.push(skill);
+            });
+        }
+
+        // Adding certificates
+        if (certificates && certificates.length > 0) {
+            certificates.forEach(certificate => {
+                newCv.certificates.push(certificate);
+            });
+        }
+
+        // Adding languages known
+        if (languagesKnown && languagesKnown.length > 0) {
+            languagesKnown.forEach(language => {
+                newCv.languagesKnown.push(language);
+            });
+        }
+
+        // Adding social links (handling multiple)
+        if (websitesAndSocialLinks) {
+            newCv.websitesAndSocialLinks = websitesAndSocialLinks;
+        }
+
+        // Adding awards and achievements
+        if (awardsAndAchievements && awardsAndAchievements.length > 0) {
+            awardsAndAchievements.forEach(award => {
+                newCv.awardsAndAchievements.push(award);
+            });
+        }
+
+        // Save the new CV to the database
+        await newCv.save();
+
+        // Respond with success message
+        return res.status(201).json({
+            success: true,
+            message: 'CV created successfully',
+            data: newCv
+        });
+    } catch (error) {
+        // Handle any server errors
+        return res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error_message: error.message
+        });
+    }
+};
+
+module.exports = { buildCv };
+
+https://github.com/shriradhesh
+
+
+
