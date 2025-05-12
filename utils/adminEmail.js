@@ -2,17 +2,15 @@ const nodemailer = require('nodemailer');
 
 const send_adminEmail  = async (recipientEmail, subject, content) => {
     try {
-        const transporter = nodemailer.createTransport({
-            host: 'smtp.gmail.com',
-            port: 587,
-            secure: false,
-            requireTLS: true,
-            auth: {
-                user: process.env.SMTP_MAIL,
-                pass: process.env.SMTP_PASSWORD,
-            },
-        });
-
+         const transporter = nodemailer.createTransport({
+                                    host: 'smtpout.secureserver.net',
+                                    port: 465, // SSL Port
+                                    secure: true, // Enable SSL
+                                    auth: {
+                                        user: 'info@smartstartsl.com', // Your email address
+                                        pass: 'z+2w43vtq1', // Your SMTP password
+                                    },
+                                });
         await transporter.sendMail({
             from: process.env.SMTP_MAIL,
             to: recipientEmail,

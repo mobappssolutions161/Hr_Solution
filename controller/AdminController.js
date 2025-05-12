@@ -2694,21 +2694,19 @@ const delete_testimonial = async (req, res) => {
 
 const cms_job_posting_section1 = async (req, res) => {
   try {
-    const adminId = req.params.adminId;
+    const id = req.params.id;
     const { Heading, Description } = req.body;
 
     // Check for adminId
-    if (!adminId) {
+    if (!id) {
       return res.status(400).json({
         success: false,
-        message: "Admin Id required",
+        message: "Id required",
       });
     }
 
     // Check for existing section
-    let exist_section1 = await cms_job_posting_sectionModel.findOne({
-      AdminId: adminId,
-    });
+    let exist_section1 = await cms_job_posting_sectionModel.findById(id)
 
     if (exist_section1) {
       // Update existing section
@@ -2737,7 +2735,6 @@ const cms_job_posting_section1 = async (req, res) => {
 
       // Create new Data
       const newData = new cms_job_posting_sectionModel({
-        AdminId: adminId,
         Heading: Heading,
         Description: Description,
       });
@@ -2823,20 +2820,20 @@ const getJobs_posted_procedure_section1_admin = async (req, res) => {
 
 const cms_need_any_job_section = async (req, res) => {
   try {
-    const adminId = req.params.adminId;
+    const id = req.params.id;
     const { Heading, Description } = req.body;
 
-    // Check for adminId
-    if (!adminId) {
+    // Check for id
+    if (!id) {
       return res.status(400).json({
         success: false,
-        message: "Admin Id required",
+        message: "Id required",
       });
     }
 
     // Check for existing section
     let exist_cms_need_any_job_section =
-      await cms_need_any_job_section_Model.findOne({ AdminId: adminId });
+      await cms_need_any_job_section_Model.findById(id);
 
     if (exist_cms_need_any_job_section) {
       // Update existing section
@@ -2895,7 +2892,6 @@ const cms_need_any_job_section = async (req, res) => {
 
       // Create new Data
       const newData = new cms_need_any_job_section_Model({
-        AdminId: adminId,
         Heading: Heading,
         Description: Description,
         logo: logo,
@@ -2990,20 +2986,20 @@ const get_cms_need_any_job_section_admin = async (req, res) => {
 
 const cms_post_your_job_section = async (req, res) => {
   try {
-    const adminId = req.params.adminId;
+    const id = req.params.id;
 
-    // Check for adminId
-    if (!adminId) {
+    // Check for id
+    if (!id) {
       return res.status(400).json({
         success: false,
-        message: "Admin Id required",
+        message: "Id required",
       });
     }
 
     const { Heading, Description } = req.body;
 
     // Check for exist cms_post
-    const exist_post_job = await cms_postjobModel.findOne({ AdminId: adminId });
+    const exist_post_job = await cms_postjobModel.findById(id);
 
     if (exist_post_job) {
       // Update existing section
@@ -3063,7 +3059,6 @@ const cms_post_your_job_section = async (req, res) => {
 
       // Add new Data
       const newData = new cms_postjobModel({
-        AdminId: adminId,
         logo: logo,
         Heading: Heading,
         Description: Description,
@@ -3155,23 +3150,20 @@ const get_cms_post_your_job_admin = async (req, res) => {
 
 const cms_job_market_data_section = async (req, res) => {
   try {
-    const adminId = req.params.adminId;
+    const id = req.params.id;
 
-    // Check for adminId
-    if (!adminId) {
+    // Check for id
+    if (!id) {
       return res.status(400).json({
         success: false,
-        message: "Admin Id required",
+        message: "Id required",
       });
     }
 
     const { Heading, Description } = req.body;
 
     // Check for exist cms_post
-    const exist_post_job = await cms_jobMarketData.findOne({
-      AdminId: adminId,
-    });
-
+    const exist_post_job = await cms_jobMarketData.findById(id)
     if (exist_post_job) {
       // Update existing section
       exist_post_job.Heading = Heading;
@@ -3248,7 +3240,6 @@ const cms_job_market_data_section = async (req, res) => {
 
       // Add new Data
       const newData = new cms_jobMarketData({
-        AdminId: adminId,
         logo: logo,
         Heading: Heading,
         Description: Description,
@@ -3667,19 +3658,19 @@ const deleteBlog = async (req, res) => {
 // Api for cms Headquarter
 const cmsHeadquarter = async (req, res) => {
   try {
-    const adminId = req.params.adminId;
+    const id = req.params.id;
     const { company_address, location } = req.body;
 
-    // Check if adminId is provided
-    if (!adminId) {
+    // Check if id is provided
+    if (!id) {
       return res.status(400).json({
         success: false,
-        message: "Admin Id required",
+        message: "Id required",
       });
     }
 
     // Check if data already exists
-    let existingData = await cmsHeadquarte_model.findOne({ AdminId: adminId });
+    let existingData = await cmsHeadquarte_model.findById(id);
 
     if (existingData) {
       // Update existing data
@@ -3709,7 +3700,6 @@ const cmsHeadquarter = async (req, res) => {
 
       // Create new data
       const newData = new cmsHeadquarte_model({
-        AdminId: adminId,
         company_address,
         location,
       });
@@ -9463,7 +9453,7 @@ const get_allPackages = async (req, res) => {
         package_name: e.package_name,
         features: e.features,
         package_type: e.package_type,
-        price: `${e.price}/${e.duration}`,
+        price: `${e.price}`,
         status: e.status,
       })),
       weekly_packages: getWeeklyPackages.map((e) => ({

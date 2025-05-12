@@ -141,22 +141,22 @@ router.post('/adminResetPass/:adminId', Admin_and_staffController.adminResetPass
                 router.delete('/delete_testimonial/:testimonial_id', authUser, role_check('/delete_testimonial'), Admin_and_staffController.delete_testimonial) 
 
     // Api for cms_job_posting_section1
-                router.post('/cms_job_posting_section1/:adminId', authUser, role_check('/cms_job_posting_section1'),  Admin_and_staffController.cms_job_posting_section1 )
+                router.post('/cms_job_posting_section1/:id', authUser, role_check('/cms_job_posting_section1'),  Admin_and_staffController.cms_job_posting_section1 )
     // Api for getJobs_posted_procedure_section1
                 router.get('/getJobs_posted_procedure_section1/:adminId',   Admin_and_staffController.getJobs_posted_procedure_section1)
 
     // Api for cms_need_any_job_section
-                 router.post('/cms_need_any_job_section/:adminId', authUser, role_check('/cms_need_any_job_section'), upload.single('logo'), Admin_and_staffController.cms_need_any_job_section)
+                 router.post('/cms_need_any_job_section/:id', authUser, role_check('/cms_need_any_job_section'), upload.single('logo'), Admin_and_staffController.cms_need_any_job_section)
     // Api for get_cms_need_any_job_section
                 router.get('/get_cms_need_any_job_section/:adminId',  Admin_and_staffController.get_cms_need_any_job_section)
 
     // Api for cms_post_your_job_section
-                router.post('/cms_post_your_job_section/:adminId', authUser, role_check('/cms_post_your_job_section'), upload.single('logo'), Admin_and_staffController.cms_post_your_job_section)
+                router.post('/cms_post_your_job_section/:id', authUser, role_check('/cms_post_your_job_section'), upload.single('logo'), Admin_and_staffController.cms_post_your_job_section)
     // Api for get_cms_post_your_job
                router.get('/get_cms_post_your_job/:adminId',   Admin_and_staffController.get_cms_post_your_job)
 
     // Api for cms_job_market_data_section
-               router.post('/cms_job_market_data_section/:adminId', authUser, role_check('/cms_job_market_data_section'),  upload.single('logo'), Admin_and_staffController.cms_job_market_data_section)
+               router.post('/cms_job_market_data_section/:id', authUser, role_check('/cms_job_market_data_section'),  upload.single('logo'), Admin_and_staffController.cms_job_market_data_section)
     // Api for get_cms_job_market_data
                router.get('/get_cms_job_market_data/:adminId',   Admin_and_staffController.get_cms_job_market_data)
 
@@ -179,7 +179,7 @@ router.post('/adminResetPass/:adminId', Admin_and_staffController.adminResetPass
                 router.delete('/deleteBlog/:blogId', authUser, role_check('/deleteBlog'),  Admin_and_staffController.deleteBlog)
 
     // Api for cmsHeadquarter
-                router.post('/cmsHeadquarter/:adminId', authUser, role_check('/cmsHeadquarter'), Admin_and_staffController.cmsHeadquarter)
+                router.post('/cmsHeadquarter/:id', authUser, role_check('/cmsHeadquarter'), Admin_and_staffController.cmsHeadquarter)
     // Api for getcms_headquarter
                 router.get('/getcms_headquarter/:adminId',   Admin_and_staffController.getcms_headquarter)
 

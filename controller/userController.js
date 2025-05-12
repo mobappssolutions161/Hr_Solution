@@ -119,12 +119,229 @@ function isValidEmail(email) {
 
 // Api for client Signup
 
+// const employeeSignup = async (req, res) => {
+//     try {
+//         var { name, email, password, phone_no, company_name, Number_of_emp, company_industry, company_HQ, package_id} = req.body
+
+//         // check for required fields
+//         const requiredFields = ["name", "email", "password", "phone_no", "company_name", "Number_of_emp", "company_industry", "company_HQ", "package_id"];
+
+//         for (const field of requiredFields) {
+//             if (!req.body[field]) {
+//                 return res
+//                     .status(400)
+//                     .json({
+//                         message: `Missing ${field.replace("_", " ")} `,
+//                         success: false,
+//                     });
+//             }
+//         }
+
+//         if (!isValidEmail(email)) {
+//             return res.status(400).json({
+//                 success: false,
+//                 message: 'Please Enter valid Email'
+//             })
+//         }
+
+
+//         // check for existing employee
+//         const existingEmp = await employeeModel.findOne({ email: email })
+//         if (existingEmp) {
+//             return res.status(400).json({
+//                 success: false,
+//                 message: 'email already exists'
+//             })
+//         }
+//         // check for company
+//         const existCompany = await employeeModel.findOne({ company_name: company_name }) 
+//         if (existCompany) {
+//             return res.status(400).json({
+//                 success: false,
+//                 message: 'Company Details already exists'
+//             })
+//         }
+                
+
+//         //hashed the password
+//         const hashedPassword = await bcrypt.hash(password, 10)
+//         let profileImage = null
+
+//         if (req.file && req.file.filename) {
+//             // Get the file extension
+//             const fileExtension = path.extname(req.file.filename).toLowerCase();
+
+//             // List of allowed extensions
+//             const allowedExtensions = ['.jpg', '.jpeg', '.png'];
+
+//             // Check if the file extension is in the allowed list
+//             if (allowedExtensions.includes(fileExtension)) {
+//                 // If valid, update the profile image
+//                 profileImage = req.file.filename;
+//             } else {
+//                 // If not valid, throw an error
+//                 return res.status(400).json({
+//                     success: false,
+//                     message: 'Invalid file type. Only .jpg, .jpeg, and .png files are allowed.'
+//                 });
+//             }
+//         }
+
+
+        
+//         // check for package
+//         var package = await clientPackageModel.findOne({ _id: package_id })
+//         if (!package) {
+//             return res.status(400).json({
+//                 success: false,
+//                 message: 'Package Not Found'
+//             })
+//         }
+
+//         var today = new Date()
+//         let package_active_date = today.toISOString()
+
+//         let package_end_date = null
+//         if (package.access_portal) {
+//             package_end_date = new Date(today)
+//             package_end_date.setDate(package_end_date.getDate() + package.access_portal)
+//             package_end_date = package_end_date.toISOString()
+//         }
+//         else {
+//             return res.status(400).json({
+//                 success: false,
+//                 message: 'Package Activation days are missing'
+//             })
+//         }
+
+//         let newData;
+
+
+//         if (package.package_type === 'Weekly') {
+
+//             newData = new employeeModel({
+//                 name,
+//                 email,
+//                 password: hashedPassword,
+//                 phone_no,
+//                 company_name,
+//                 Number_of_emp,
+//                 company_industry,
+//                 profileImage: profileImage || null,
+//                 status: 0,
+//                 company_HQ: company_HQ,
+//                 package_id,
+//                 package_name: package.package_name,
+//                 package_type: package.package_type,
+//                 package_active_date,
+//                 package_end_date,
+
+//             })
+
+
+
+
+//             const EmployeeContent = `
+//                                                                 <!DOCTYPE html>
+//                                 <html lang="en">
+//                                 <head>
+//                                     <meta charset="UTF-8">
+//                                     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+//                                     <title>Account Login Details</title>
+//                                 </head>
+//                                 <body style="font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f4f4f4;">
+
+//                                 <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);">
+//                                     <h2 style="text-align: center; color: #4CAF50;">Hello ${name},</h2>
+//                                     <p>Thank you for registering with us. Below are your account login details:</p>
+
+//                                     <table style="width: 100%; margin-top: 20px; border-collapse: collapse;">
+//                                         <tr>
+//                                             <th style="padding: 12px; text-align: left; border-bottom: 1px solid #ddd; font-weight: bold; background-color: #f1f1f1;">Email</th>
+//                                             <td style="padding: 12px; text-align: left; border-bottom: 1px solid #ddd; background-color: #fafafa;">${email}</td>
+//                                         </tr>
+//                                         <tr>
+//                                             <th style="padding: 12px; text-align: left; border-bottom: 1px solid #ddd; font-weight: bold; background-color: #f1f1f1;">Password</th>
+//                                             <td style="padding: 12px; text-align: left; border-bottom: 1px solid #ddd; background-color: #fafafa;">${password}</td>
+//                                         </tr>
+//                                         <tr>
+//                                             <th style="padding: 12px; text-align: left; border-bottom: 1px solid #ddd; font-weight: bold; background-color: #f1f1f1;">Phone Number</th>
+//                                             <td style="padding: 12px; text-align: left; border-bottom: 1px solid #ddd; background-color: #fafafa;">${phone_no}</td>
+//                                         </tr>
+//                                     </table>
+
+//                                     <p>If you have any questions, feel free to reach out to our support team.</p>
+//                                 </div>
+
+//                                 </body>
+//                                 </html>
+
+//                                `;
+
+//             // Send email to the staff
+//             await send_EmployeeEmail(email, `Your Account successfully Created`, EmployeeContent);
+
+
+//             // send notification to admin
+//             try {
+//                 const newNotification = adminNotificationModel.create({
+//                     title: `New Client`,
+//                     message: `New client added successfully! Please activate their account from pending status`,
+//                     date: new Date(),
+//                     status: 1,
+//                 });
+//                 newNotification.save();
+//             } catch (notificationError) {
+//                 console.error('Error creating notification:', notificationError);
+//             }
+//         }
+//         else {
+
+//             newData = new employeeModel({
+//                 name,
+//                 email,
+//                 password: hashedPassword,
+//                 phone_no,
+//                 company_name,
+//                 Number_of_emp,
+//                 company_industry,
+//                 profileImage: profileImage,
+//                 status: 2,
+//                 company_HQ: company_HQ,
+//                 package_id,
+//                 package_name: package.package_name,
+//                 package_type: package.package_type,
+//                 plain_pwd: password,
+//                 package_active_date,
+//                 package_end_date,
+
+//             })
+
+//         }
+//         await newData.save()
+
+//         return res.status(200).json({
+//             success: true,
+//             message: 'successfully SignUP',
+//             clientId: newData._id,
+
+//         })
+
+//     } catch (error) {
+//         return res.status(500).json({
+//             success: false,
+//             message: 'server error',
+//             error_message: error.message
+//         })
+//     }
+// }
+
 const employeeSignup = async (req, res) => {
     try {
-        var { name, email, password, phone_no, company_name, Number_of_emp, company_industry, company_HQ, package_id } = req.body
+        var { name, email, password, phone_no, company_name, Number_of_emp, company_industry, company_HQ, package_id ="6763e1563feea66175a231fb"} = req.body
 
         // check for required fields
-        const requiredFields = ["name", "email", "password", "phone_no", "company_name", "Number_of_emp", "company_industry", "company_HQ", "package_id"];
+        const requiredFields = ["name", "email", "password", "phone_no", "company_name", "Number_of_emp", "company_industry", "company_HQ"];
 
         for (const field of requiredFields) {
             if (!req.body[field]) {
@@ -306,7 +523,7 @@ const employeeSignup = async (req, res) => {
                 Number_of_emp,
                 company_industry,
                 profileImage: profileImage,
-                status: 2,
+                status: 1,
                 company_HQ: company_HQ,
                 package_id,
                 package_name: package.package_name,
@@ -319,6 +536,42 @@ const employeeSignup = async (req, res) => {
 
         }
         await newData.save()
+
+        // Send the email
+        const emailContent = `
+           <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to Smart Start SL Ltd</title>
+</head>
+<body style="font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f4f4f4;">
+    <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);">
+        <h2 style="text-align: center; color: navy;">Welcome to Smart Start SL Ltd – Your Journey Begins Here</h2>
+        <p><strong>Dear Valuable Client,</strong></p>
+        <p>Thank you for signing up with <strong>Smart Start SL Ltd</strong>.</p>
+        <p>We are excited to welcome you to a community built on excellence, innovation, and a strong commitment to your success. At <strong>Smart Start SL Ltd</strong>, we don't just deliver HR services, we build strategic partnerships that drive real growth and impact.</p>
+        <p>Your registration is the first step toward a powerful, results-driven engagement. Our team will contact you shortly to understand your needs and outline the next steps.</p>
+        <p>If you would like to speak with us sooner, feel free to reach out at <a href="mailto:info@smartstart.sl"><strong>info@smartstart.sl</strong></a> or call <strong>+232 88 247000</strong>.</p>
+        <p>We look forward to partnering with you and building a successful future together.</p>
+        <p><strong>Warm Regards,</strong></p>
+        <p><strong>Patricia Olayemi Jangah</strong><br>
+        <strong>CEO/Founder</strong><br>
+        <strong>Smart Start SL Ltd</strong><br>
+        <a href="http://www.smartstartsl.com">www.smartstartsl.com</a><br>
+        <a href="mailto:info@smartstart.sl"><strong>info@smartstart.sl</strong></a><br>
+        <strong>+232 88 247000</strong></p>
+    </div>
+</body>
+</html>
+
+        `;
+
+        // Send email to the new client
+        await send_EmployeeEmail(email, 'Welcome to Smart Start SL Ltd – Your Journey Begins Here', emailContent);
+
+
 
         return res.status(200).json({
             success: true,
@@ -1027,6 +1280,7 @@ const forgetPassOTP = async (req, res) => {
             clientId: client._id,
             otp: otp
         };
+        console.log(otpData)
         await otpModel.create(otpData);
 
         const emailContent = `<!DOCTYPE html>
@@ -1057,7 +1311,7 @@ const forgetPassOTP = async (req, res) => {
 
         res.status(200).json({
             success: true,
-            message: "An OTP has been sent to your email",
+            message: "An OTP has been sent to your ",
             email: client.email,
         });
     } catch (error) {
@@ -7650,54 +7904,58 @@ const uploadJobFile = async (req, res) => {
     try {
         const { jobTitleId } = req.params;
 
+        // 1. Validate jobTitleId and file
         if (!jobTitleId || !req.file) {
-            return res.status(400).json({ message: "Job ID and Word file are required." });
-        }
-        
-        const jobTitle = await main_jobTitleModel.findOne({ _id: jobTitleId });
-        if (!jobTitle) {
-            return res.status(400).json({
-                success: false,
-                message: "Job title not found",
-            });
+            return res.status(400).json({ message: "Job ID and Word (.docx) file are required." });
         }
 
+        // 2. Check file type
+        const ext = path.extname(req.file.originalname).toLowerCase();
+        if (ext !== ".docx") {
+            // Delete the invalid file
+            fs.unlinkSync(req.file.path);
+            return res.status(400).json({ message: "Only .docx files are allowed." });
+        }
+
+        // 3. Check if job title exists
+        const jobTitle = await main_jobTitleModel.findById(jobTitleId);
+        if (!jobTitle) {
+            fs.unlinkSync(req.file.path);
+            return res.status(404).json({ message: "Job title not found." });
+        }
+
+        // 4. Ensure uploads folder exists
         const uploadsDir = path.join(__dirname, "../uploads");
         if (!fs.existsSync(uploadsDir)) {
             fs.mkdirSync(uploadsDir, { recursive: true });
         }
 
-        // Move Word file to uploads folder
-        const tempWordFilePath = req.file.path;
+        // 5. Move the file to uploads and rename
         const wordFileName = `job_${Date.now()}.docx`;
-        const wordFilePath = path.join(uploadsDir, wordFileName);
-        fs.renameSync(tempWordFilePath, wordFilePath);
+        const finalPath = path.join(uploadsDir, wordFileName);
+        fs.renameSync(req.file.path, finalPath);
 
-        // Convert Word to PDF using CloudConvert
-        const pdfFilePath = await convertWordToPdf(wordFilePath);
-        const pdfFileName = path.basename(pdfFilePath);
-
-        // Save both files in MongoDB
+        // 6. Save to MongoDB
         const newJobDescription = new jobDescription_model2({
             jobTitleId,
             jobTitle: jobTitle.Main_jobTitle,
             jobWord: wordFileName,
-            jobPdf: pdfFileName,
         });
 
         await newJobDescription.save();
 
         res.status(201).json({
             success: true,
-            message: "Word file uploaded and converted to PDF successfully",
+            message: "Word file uploaded and saved successfully.",
             data: newJobDescription,
         });
 
     } catch (error) {
-        console.error("Error:", error.message);
-        res.status(500).json({ success: false, message: "Internal Server Error", error: error.message });
+        console.error("Upload error:", error);
+        res.status(500).json({ message: "Internal Server Error", error: error.message });
     }
 };
+
 
 const { exec } = require("child_process");
 
