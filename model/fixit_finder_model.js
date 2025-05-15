@@ -4,6 +4,7 @@ const fixit_finder_Schema = new mongoose.Schema(
   {
     Full_Name: { type: String },
     Mobile_Number: { type: String },
+    Mobile_Number_2: { type: String },
     Gender: { type: String, enum: ["Male", "Female", "Others", "male", "female", "others"] },
     Workshop_Address: { type: String },
     Business_Name: { type: String },

@@ -61,51 +61,63 @@ const { Document, Packer, Paragraph, TextRun } = require('docx');
 const { convert } = require('html-to-text');
 
 
-// Function to improve spacing and readability in text
+// ----------- Text Formatting ----------
 const improveTextFormatting = (text) => {
-    text = text.replace(/([.,!?;:])(?=\S)/g, '$1 ');
-    text = text.replace(/(\S)([.,!?;:])(\S)/g, '$1$2 $3');
-    text = text.replace(/([a-zA-Z])\.(?=\S)/g, '$1. ');
-    text = text.replace(/\s{2,}/g, ' ');
-    text = text.replace(/([A-Z][A-Z\s]+)(\n|$)/g, '\n\n$1\n');
-    return text.trim();
+  if (!text || typeof text !== "string") return "";
+  text = text.replace(/([.,!?;:])(?=\S)/g, "$1 ");
+  text = text.replace(/(\S)([.,!?;:])(\S)/g, "$1$2 $3");
+  text = text.replace(/([a-zA-Z])\.(?=\S)/g, "$1. ");
+  text = text.replace(/\s{2,}/g, " ");
+  text = text.replace(/([A-Z][A-Z\s]+)(\n|$)/g, "\n\n$1\n");
+  return text.trim();
 };
 
-// Function to parse PDF CV
+// ----------- PDF Parsing ---------------
 const parsePDF = async (filePath) => {
-    const dataBuffer = fs.readFileSync(filePath);  // Ensure filePath is a string path
-    const data = await pdfParse(dataBuffer);
+  const dataBuffer = fs.readFileSync(filePath);
+  const data = await pdfParse(dataBuffer);
 
-    let parsedText = data.text;
-    parsedText = parsedText.replace(/(\.)(\s)/g, '$1\n\n');
-    parsedText = parsedText.replace(/(\.)(\n)/g, '$1\n\n');
-    parsedText = improveTextFormatting(parsedText);
+  let parsedText = data.text;
+  parsedText = parsedText.replace(/(\.)(\s)/g, "$1\n\n");
+  parsedText = parsedText.replace(/(\.)(\n)/g, "$1\n\n");
+  parsedText = improveTextFormatting(parsedText);
 
-    return parsedText;
+  return parsedText;
 };
 
-// Function to calculate the match percentage
-const calculateMatchPercentage = (cvText, jdText, jobHeading) => {
+// ----------- Tokenization + Stemming -------
+const tokenizer = new natural.WordTokenizer();
+const stemmer = natural.PorterStemmer;
+const preprocess = (text) => {
+  if (!text || typeof text !== "string") return [];
+  const tokens = tokenizer.tokenize(text.toLowerCase());
+  return tokens.map((word) => stemmer.stem(word));
+};
 
-    const tokenizer = new natural.WordTokenizer();
-    const cvTokens = tokenizer.tokenize(cvText.toLowerCase());
-    const jdTokens = tokenizer.tokenize(jdText.toLowerCase());
+// ----------- Match % Calculation ------------
+const calculateMatchPercentage = (cvText, jdText, jobHeading = "") => {
+  const cvTokens = preprocess(cvText);
+  const jdTokens = preprocess(jdText);
 
-    // Check if jobHeading is found in the CV text
-    const jobHeadingLower = jobHeading.toLowerCase();
-    const headingFound = cvText.toLowerCase().includes(jobHeadingLower);
+  const cvTfIdf = new natural.TfIdf();
+  cvTfIdf.addDocument(cvTokens.join(" "));
 
-    let matchPercentage;
-
-    if (headingFound) {
-        // Generate a random number between 3 and 5 if heading is found
-        matchPercentage = (Math.random() * (5 - 3) + 3).toFixed(2);
-    } else {
-        // Fix match percentage at 1 with no decimal if heading is not found
-        matchPercentage = 1;
+  let matchCount = 0;
+  jdTokens.forEach((word) => {
+    if (cvTfIdf.tfidf(word, 0) > 0) {
+      matchCount++;
     }
+  });
 
-    return matchPercentage;
+  let matchPercentage = (matchCount / jdTokens.length) * 100;
+
+  if (matchPercentage < 35) {
+    matchPercentage += 10;
+  } else if (matchPercentage >= 35 && matchPercentage < 50) {
+    matchPercentage += 5;
+  }
+
+  return matchPercentage.toFixed(2);
 };
 /* employer Section */
 
@@ -3345,228 +3357,133 @@ const filterJob = async (req, res) => {
 // APi for apply on job
 
 const apply_on_job = async (req, res) => {
-    try {
-        const jobId = req.params.jobId;
-        console.log(jobId)
-        const {
-            first_Name,
-            last_Name,
-            user_Email,
-            city,
-            state,
-            phone_no,
-            gender,
-            Highest_Education,
-            job_experience,
-            Total_experience,
-            time_range_for_interview
-        } = req.body;
+  try {
+    const jobId = req.params.jobId;
+    const {
+      first_Name,
+      last_Name,
+      user_Email,
+      city,
+      state,
+      phone_no,
+      gender,
+      Highest_Education,
+      job_experience,
+      Total_experience,
+      time_range_for_interview,
+    } = req.body;
 
-        // Check for JobId
-        if (!jobId) {
-            return res.status(400).json({
-                success: false,
-                message: 'job Id required'
-            });
-        }
-        if (!city) {
-            return res.status(400).json({
-                success: false,
-                message: 'Required Destrict'
-            })
-        }
-        if (!state) {
-            return res.status(400).json({
-                success: false,
-                message: 'Required Country'
-            })
-        }
-        // Check for required fields
-        const requiredFields = ["first_Name", "last_Name", "user_Email",
-            "phone_no", "gender", "Highest_Education", "job_experience",
-            "Total_experience",
-        ];
+    if (!jobId) return res.status(400).json({ success: false, message: "job Id required" });
+    if (!city) return res.status(400).json({ success: false, message: "Required District" });
+    if (!state) return res.status(400).json({ success: false, message: "Required Country" });
 
-        for (const field of requiredFields) {
-            if (!req.body[field]) {
-                return res.status(400).json({
-                    message: `Missing ${field.replace("_", " ")}`,
-                    success: false,
-                });
-            }
-        }
-
-        // Check for job
-        const job = await jobModel.findOne({
-            jobId: jobId,
-            status: 1
-        });
-        if (!job) {
-            return res.status(400).json({
-                success: false,
-                message: 'active job not found'
-            });
-        }
-
-        // Access job Details
-        const job_Heading = job.job_title;
-        const Salary = `${job.salary_pay[0].Minimum_pay} - ${job.salary_pay[0].Maximum_pay}, ${job.salary_pay[0].Rate}`;
-        const job_expired_Date = job.endDate;
-        const job_status = job.status;
-        const company_name = job.company_name;
-        const empId = job.emp_Id
-
-        // Check if job seeker has already applied for this job
-        const jobseeker_apply = await appliedjobModel.findOne({
-            user_Email: user_Email,
-            jobId: jobId
-        });
-
-        if (jobseeker_apply) {
-            return res.status(400).json({
-                success: false,
-                message: 'you already applied on this job'
-            });
-        }
-
-        const job_description = job.job_Description || '';
-        const job_responsibility = job.job_Responsibility || '';
-        let combine_jd = `${job_description} \n\n ${job_responsibility}`;
-        combine_jd = improveTextFormatting(combine_jd);
-
-console.log(combine_jd)
-
-        // Upload resume file
-
-        const uploadResume = req.file ? req.file : null;
-        if (!uploadResume) {
-            return res.status(400).json({
-                success: false,
-                message: 'CV required'
-            });
-        }
-
-
-        //  Check if the uploaded file exists and is a PDF
-        const allowedExtensions = ['.pdf'];
-
-        // Ensure `uploadResume` and `originalname` are defined
-        if (!uploadResume || !uploadResume.originalname) {
-            return res.status(400).json({
-                success: false,
-                message: 'No file was uploaded or file name is invalid'
-            });
-        }
-
-        // Extract and validate file extension
-        let fileExtension = uploadResume.originalname.split('.').pop().toLowerCase();
-
-        if (!fileExtension || !allowedExtensions.includes('.' + fileExtension.trim())) {
-            return res.status(400).json({
-                success: false,
-                message: 'Only PDF files are allowed for resume upload'
-            });
-        }
-
-
-        const resumePath = uploadResume.path || uploadResume.filename;
-
-
-
-        let cvText = await parsePDF(resumePath);
-        cvText = improveTextFormatting(cvText);
-        console.log(cvText)
-
-        // Calculate the match percentage
-        const matchPercentage = calculateMatchPercentage(cvText, combine_jd, job.job_title)
-
-        const newData = new appliedjobModel({
-            first_Name,
-            last_Name,
-            user_Email,
-            city,
-            state,
-            phone_no,
-            gender,
-            Highest_Education,
-            job_experience,
-            Total_experience,
-            time_range_for_interview,
-            uploadResume: uploadResume.filename,
-            job_Heading,
-            Salary,
-            job_expired_Date,
-            job_status,
-            jobId: jobId,
-            candidateStatus: 1,
-            job_title: job.job_title,
-            company_location: job.company_address,
-            candidate_rating: parseInt(matchPercentage) || 1
-        });
-
-        try {
-            var newNotification = await empNotificationModel.create({
-                empId: empId,
-                message: `${first_Name} applied on job ${job_Heading}`,
-                date: new Date(),
-                status: 1,
-            });
-
-            await newNotification.save();
-        } catch (notificationError) {
-            // Handle notification creation error
-            console.error('Error creating notification:', notificationError);
-            // Optionally, you can choose to return an error response here or handle it in another way
-        }
-        await newData.save();
-
-        const emailContent = `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Application Received</title>
-</head>
-<body style="font-family: Arial, sans-serif; background-color: #f2f2f2; padding: 20px;">
-
-    <div style="background-color: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
-        <h2 style="color: #333; text-align: center; margin-bottom: 20px;">Application Received – Thank You for Applying</h2>
-
-        <p>Dear <strong>${first_Name} ${last_Name}</strong>,</p>
-
-        <p>Thank you for submitting your application through our portal. We have received your submission and appreciate your interest in the opportunity.</p>
-
-        <p>Please note that only shortlisted candidates will be contacted for the next stage of the selection process.</p>
-
-        <p>We value the time and effort you have invested in your application, and our client will be in touch as appropriate.</p>
-
-        <p><strong>Warm Regards,<strong></p>
-        <p><strong>The Recruitment Team</strong><br>
-        <strong>Smart Start SL Ltd</strong><br>
-        <a href="http://www.smartstartsl.com" style="color: #1a73e8;">www.smartstartsl.com</a><br>
-        <a href="mailto:info@smartstart.sl" style="color: #1a73e8;">info@smartstart.sl</a><br>
-        <strong>+232 88 247000</strong></p>
-    </div>
-
-</body>
-</html>`;
-
-
-        sendjobEmail(user_Email, `Job Application Confirmation ..!`, emailContent);
-
-
-        return res.status(200).json({
-            success: true,
-            message: 'job Applied successfully'
-        });
-    } catch (error) {
-        return res.status(500).json({
-            success: false,
-            message: 'server error',
-            error_message: error.message
-        });
+    const requiredFields = ["first_Name", "last_Name", "user_Email", "phone_no", "gender", "Highest_Education", "job_experience", "Total_experience"];
+    for (const field of requiredFields) {
+      if (!req.body[field]) {
+        return res.status(400).json({ message: `Missing ${field.replace("_", " ")}`, success: false });
+      }
     }
-}
+
+    const job = await jobModel.findOne({ jobId: jobId, status: 1 });
+    if (!job) return res.status(400).json({ success: false, message: "active job not found" });
+
+    const job_Heading = job.job_title;
+    const Salary = `${job.salary_pay[0].Minimum_pay} - ${job.salary_pay[0].Maximum_pay}, ${job.salary_pay[0].Rate}`;
+    const job_expired_Date = job.endDate;
+    const job_status = job.status;
+    const empId = job.emp_Id;
+
+    const jobseeker_apply = await appliedjobModel.findOne({ user_Email: user_Email, jobId: jobId });
+    if (jobseeker_apply) return res.status(400).json({ success: false, message: "you already applied on this job" });
+
+    const job_description = job.job_Description || '';
+    const job_responsibility = job.job_Responsibility || '';
+    let combine_jd = `${job_description}\n\n${job_responsibility}`;
+    combine_jd = improveTextFormatting(combine_jd);
+
+    const uploadResume = req.file || null;
+    if (!uploadResume || !uploadResume.originalname) {
+      return res.status(400).json({ success: false, message: "CV required or invalid file" });
+    }
+
+    const fileExtension = uploadResume.originalname.split('.').pop().toLowerCase();
+    if (!['pdf'].includes(fileExtension)) return res.status(400).json({ success: false, message: "Only PDF files allowed" });
+
+    const resumePath = uploadResume.path || path.join(__dirname, "..", "uploads", uploadResume.filename);
+    let cvText = await parsePDF(resumePath);
+    cvText = improveTextFormatting(cvText);
+
+    const matchPercentage = calculateMatchPercentage(cvText, combine_jd, job_Heading);
+let rating = 1;
+const percentage = parseFloat(matchPercentage);
+
+console.log(matchPercentage)
+
+if (percentage >= 80) rating = 5;
+else if (percentage >= 60) rating = 4;
+else if (percentage >= 40) rating = 3;
+else if (percentage >= 20) rating = 2;
+
+
+    const newData = new appliedjobModel({
+      first_Name,
+      last_Name,
+      user_Email,
+      city,
+      state,
+      phone_no,
+      gender,
+      Highest_Education,
+      job_experience,
+      Total_experience,
+      time_range_for_interview,
+      uploadResume: uploadResume.filename,
+      job_Heading,
+      Salary,
+      job_expired_Date,
+      job_status,
+      jobId: jobId,
+      candidateStatus: 1,
+      job_title: job.job_title,
+      company_location: job.company_address,
+      candidate_rating: rating,
+    });
+
+    try {
+      const newNotification = await empNotificationModel.create({
+        empId: empId,
+        message: `${first_Name} applied on job ${job_Heading}`,
+        date: new Date(),
+        status: 1,
+      });
+      await newNotification.save();
+    } catch (notificationError) {
+      console.error("Error creating notification:", notificationError);
+    }
+
+    await newData.save();
+
+    const emailContent = `<p>Dear <strong>${first_Name} ${last_Name}</strong>,<br><br>
+      Thank you for submitting your application through our portal. We have received your submission and appreciate your interest.<br>
+      Only shortlisted candidates will be contacted for the next stage.<br><br>
+      Warm Regards,<br>
+      <strong>The Recruitment Team</strong><br>
+      Smart Start SL Ltd</p>`;
+
+    sendjobEmail(user_Email, "Job Application Confirmation ..!", emailContent);
+
+    return res.status(200).json({
+      success: true,
+      message: "job Applied successfully",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "server error",
+      error_message: error.message,
+    });
+  }
+};
 
 /* Notification section */
 // Api for get Notification of the particular employee
@@ -4069,7 +3986,8 @@ const create_contactUS = async (req, res) => {
 const fixit_finder = async (req, res) => {
     try {
         const { job_title, company_location } = req.body;
-        console.log(job_title)
+        console.log("Received:", { job_title, company_location });
+
         if ((job_title && typeof job_title !== "string") || (company_location && typeof company_location !== "string")) {
             return res.status(400).json({
                 success: false,
@@ -4077,17 +3995,18 @@ const fixit_finder = async (req, res) => {
             });
         }
 
-        const query = { $or: [] };
+        // Build the query object
+        const query = {};
 
         if (job_title) {
-            query.$or.push({ applicable: { $regex: job_title, $options: "i" } }); 
+            query.applicable = { $regex: job_title, $options: "i" };
+        }
+        if(company_location){
+            const escapeRegex = str => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            query.Location_in_Sierra_Leone = { $regex: escapeRegex(company_location), $options: "i" };
         }
 
-        if (company_location) {
-            query.$or.push({ Location_in_Sierra_Leone: { $regex: company_location, $options: "i" } }); 
-        }
-        console.log(query)
-        if (query.$or.length === 0) {
+        if (!job_title && !company_location) {
             return res.status(400).json({
                 success: false,
                 message: "Please provide at least Job Title or Company Location",
@@ -4095,8 +4014,8 @@ const fixit_finder = async (req, res) => {
         }
 
         const fixit_candidates = await fixit_finder_model.find(query);
-        console.log(fixit_candidates);
-        
+        console.log("Candidates Found:", fixit_candidates.length);
+
         if (fixit_candidates.length === 0) {
             return res.status(404).json({
                 success: false,
@@ -4111,6 +4030,7 @@ const fixit_finder = async (req, res) => {
             details: fixit_candidates,
         });
     } catch (error) {
+        console.error("Error in fixit_finder:", error.message);
         return res.status(500).json({
             success: false,
             message: "Server error",
@@ -4667,7 +4587,7 @@ const download_jd = async (req, res) => {
 const share_cv = async (req, res) => {
     try {
         const candidate_id = req.params.candidate_id;
-        var { to, from, subject, message, shareVia, country_code, receiver_no } = req.body;
+        var { to, subject, message, shareVia, country_code, receiver_no } = req.body;
         var baseUrl = process.env.image_baseURl
         // Check for candidate_id
         if (!candidate_id) {
@@ -4712,12 +4632,12 @@ const share_cv = async (req, res) => {
             if (typeof to === 'string') {
                 to = [to];
             }
-            if (!from || !validator.isEmail(from)) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Valid sender email required'
-                });
-            }
+            // if (!from || !validator.isEmail(from)) {
+            //     return res.status(400).json({
+            //         success: false,
+            //         message: 'Valid sender email required'
+            //     });
+            // }
             if (!subject) {
                 return res.status(400).json({
                     success: false,
@@ -4737,19 +4657,18 @@ const share_cv = async (req, res) => {
 
             // Setup nodemailer transporter
             const transporter = nodemailer.createTransport({
-                host: 'smtp.gmail.com',
-                port: 587,
-                secure: false, // true for 465, false for other ports
-                requireTLS: true,
-                auth: {
-                    user: process.env.SMTP_MAIL,
-                    pass: process.env.SMTP_PASSWORD,
-                },
-            });
+                                               host: 'smtpout.secureserver.net',
+                                               port: 465, // SSL Port
+                                               secure: true, // Enable SSL
+                                               auth: {
+                                                   user: 'info@smartstartsl.com', // Your email address
+                                                   pass: 'z+2w43vtq1', // Your SMTP password
+                                               },
+                                           });
 
             // Prepare email options
             const mailOptions = {
-                from: from,
+                from: process.env.SMTP_MAIL,
                 to: to.join(', '),
                 subject: subject,
                 text: message || 'Please find the attached CV.',

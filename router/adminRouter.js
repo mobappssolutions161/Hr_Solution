@@ -79,8 +79,9 @@ router.post('/adminResetPass/:adminId', Admin_and_staffController.adminResetPass
                                                    /* ATS Section */
         // Api for get All_candidates
                      router.get('/getAll_candidates', Admin_and_staffController.getAll_candidates) 
-        // Api for candidate_cv_rating
+        // Api for delete_job_application
                      router.get('/candidate_cv_rating/:candidate_id',   Admin_and_staffController.candidate_cv_rating) 
+                     router.delete('/delete_job_application/:id',   Admin_and_staffController.delete_job_application) 
 
                                                     /* Privacy & policy Section */
        
@@ -303,7 +304,8 @@ router.post('/adminResetPass/:adminId', Admin_and_staffController.adminResetPass
                router.post('/newsLetter', Admin_and_staffController.newsLetter)
       // Api for getAll_newsLetter
                router.get('/getAll_newsLetter', authUser, role_check('/getAll_newsLetter'),  Admin_and_staffController.getAll_newsLetter) 
-               
+               router.get('/unsubscribeNewsletter', Admin_and_staffController.unsubscribeNewsletter);
+
                // Api for delete newsletter
                router.delete('/delete_newsLetter/:newsletterId', authUser, role_check('/delete_newsLetter'),  Admin_and_staffController.delete_newsLetter) 
                 
@@ -329,6 +331,8 @@ router.post('/adminResetPass/:adminId', Admin_and_staffController.adminResetPass
                 router.get("/generate_sampleFile", Admin_and_staffController.generate_sampleFile)
         // Api for import data for fixit finder
                 router.post("/import_file", authUser, role_check('/import_file'), upload.single('file'), Admin_and_staffController.import_file)
+                router.delete("/delete_fixit_finder/:id", authUser, role_check('/delete_fixit_finder'), Admin_and_staffController.delete_fixit_finder)
+
 
                                                                 /*job Skills*/
 

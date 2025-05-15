@@ -6778,58 +6778,57 @@ const get_acadmic_credentials_verifier_admin = async (req, res) => {
 /* news letter */
 // Api for newsletter
 
+const BASE_URL = "https://sisccltd.com/hrsolutions/api"
+
 const newsLetter = async (req, res) => {
   try {
     const { email } = req.body;
 
-    // check for email
-
+    
     if (!email) {
-      return res.status(400).json({
-        success: false,
-        message: "email required",
-      });
+      return res.status(400).json({ success: false, message: "Email required" });
     }
 
-    // check for email exist
-
-    const existEmail = await cms_newsletter_Model.findOne({
-      email: email,
-    });
-
+    const existEmail = await cms_newsletter_Model.findOne({ email });
     if (existEmail) {
       return res.status(400).json({
         success: false,
-        message: "you subscribed already with these email",
+        message: "You are already subscribed with this email",
       });
     }
 
-    // save the record
-
-    const save_data = new cms_newsletter_Model({
-      email,
-    });
-
+    const save_data = new cms_newsletter_Model({ email });
     await save_data.save();
+
+    // Email Content
+    const subject = "Subscription Confirmed – Welcome!";
+    const content = `
+      <p>Thank you for subscribing! Your registration has been received successfully.</p>
+      <p>You're now connected to our growing community, and we’ll keep you updated with relevant opportunities and insights.</p>
+      <p>If this wasn’t you, or you signed up by mistake, you can unsubscribe at any time using the link below:</p>
+      <p><a href="${BASE_URL}/unsubscribeNewsletter?email=${encodeURIComponent(email)}">Unsubscribe</a></p>
+      <p>Welcome aboard!<br><strong>Smart Start SL Ltd</strong></p>
+    `;
+
+    await send_adminEmail(email, subject, content);
 
     return res.status(200).json({
       success: true,
-      message: "subscribed successfully",
+      message: "Subscribed successfully and confirmation email sent.",
     });
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: "server error",
+      message: "Server error",
       error_message: error.message,
     });
   }
 };
-
 // Api for get all news letter details
 
 const getAll_newsLetter = async (req, res) => {
   try {
-    const all_details = await cms_newsletter_Model.find({});
+    const all_details = await cms_newsletter_Model.find({status:1});
 
     if (!all_details) {
       return res.status(400).json({
@@ -6853,6 +6852,66 @@ const getAll_newsLetter = async (req, res) => {
     });
   }
 };
+
+const unsubscribeNewsletter = async (req, res) => {
+  try {
+    const { email } = req.query;
+
+    if (!email) {
+      return res.status(400).send(`
+        <html>
+          <head><title>Unsubscribe Failed</title></head>
+          <body style="font-family: Arial, sans-serif; text-align: center; margin-top: 50px;">
+            <h2>Unsubscribe Failed</h2>
+            <p>Email is required to unsubscribe.</p>
+          </body>
+        </html>
+      `);
+    }
+
+    const subscriber = await cms_newsletter_Model.findOneAndUpdate(
+      { email },
+      { status: 0 },
+      { new: true }
+    );
+
+    if (!subscriber) {
+      return res.status(404).send(`
+        <html>
+          <head><title>Unsubscribe Failed</title></head>
+          <body style="font-family: Arial, sans-serif; text-align: center; margin-top: 50px;">
+            <h2>Unsubscribe Failed</h2>
+            <p>The email address was not found in our system.</p>
+          </body>
+        </html>
+      `);
+    }
+
+    return res.status(200).send(`
+      <html>
+        <head><title>Unsubscribed</title></head>
+        <body style="font-family: Arial, sans-serif; text-align: center; margin-top: 50px;">
+          <h2>You've been unsubscribed</h2>
+          <p>We're sorry to see you go, but your email <strong>${email}</strong> has been successfully removed from our newsletter list.</p>
+          <p>If this was a mistake, you can re-subscribe at any time.</p>
+          <br />
+          <p><strong>Smart Start SL Ltd</strong></p>
+        </body>
+      </html>
+    `);
+  } catch (error) {
+    return res.status(500).send(`
+      <html>
+        <head><title>Server Error</title></head>
+        <body style="font-family: Arial, sans-serif; text-align: center; margin-top: 50px;">
+          <h2>Something went wrong</h2>
+          <p>We couldn't process your request at the moment. Please try again later.</p>
+        </body>
+      </html>
+    `);
+  }
+};
+
 
 // Api for delete news letter details
 
@@ -7123,6 +7182,7 @@ const generate_sampleFile = async (req, res) => {
     worksheet.addRow([
       "Full Name",
       "Mobile Number",
+      "Mobile Number 2",
       "Gender",
       "Workshop Address",
       "Business Name",
@@ -7136,6 +7196,7 @@ const generate_sampleFile = async (req, res) => {
     worksheet.addRow([
       "SAMUEL SESAY",
       "030658430",
+      "6545646464",
       "Male",
       "",
       "No",
@@ -7176,6 +7237,7 @@ const import_file = async (req, res) => {
     const requiredHeaders = [
       "Full Name",
       "Mobile Number",
+      "Mobile Number 2",
       "Gender",
       "Workshop Address",
       "Business Name",
@@ -7214,26 +7276,29 @@ const import_file = async (req, res) => {
           Mobile_Number: row.getCell(2).value
             ? row.getCell(2).value.toString().trim()
             : "",
-          Gender: row.getCell(3).value
+          Mobile_Number_2: row.getCell(3).value
             ? row.getCell(3).value.toString().trim()
             : "",
-          Workshop_Address: row.getCell(4).value
+          Gender: row.getCell(4).value
             ? row.getCell(4).value.toString().trim()
             : "",
-          Business_Name: row.getCell(5).value
+          Workshop_Address: row.getCell(5).value
             ? row.getCell(5).value.toString().trim()
             : "",
-          Home_Address: row.getCell(6).value
+          Business_Name: row.getCell(6).value
             ? row.getCell(6).value.toString().trim()
             : "",
-          Location_in_Sierra_Leone: row.getCell(7).value
+          Home_Address: row.getCell(7).value
             ? row.getCell(7).value.toString().trim()
             : "",
-          applicable: row.getCell(8).value
+          Location_in_Sierra_Leone: row.getCell(8).value
             ? row.getCell(8).value.toString().trim()
             : "",
-          other: row.getCell(9).value
+          applicable: row.getCell(9).value
             ? row.getCell(9).value.toString().trim()
+            : "",
+          other: row.getCell(10).value
+            ? row.getCell(10).value.toString().trim()
             : "",
         };
 
@@ -7264,6 +7329,42 @@ const import_file = async (req, res) => {
     });
   }
 };
+
+// Delete fixit finder data 
+
+const delete_fixit_finder = async(req,res)=>{
+  try {
+    const {id} = req.params
+    if(!id){
+      return res.status(400).json({
+        success : "false",
+        message : "Id is required"
+      })
+    }
+
+    const fixit_data = await fixit_finder_model.findByIdAndDelete(id)
+
+    if(!fixit_data){
+      return res.status(400).json({
+        success : false,
+        message : "Enter correct id"
+      })
+    }
+
+    return res.status(200).json({
+      success : false,
+      message  : "Data deleted successfully",
+      data : fixit_data._id
+    })
+
+  } catch (error) {
+    return res.status(500).json({
+      success : false,
+      message : "Internal Server Error",
+      error : error.message
+    })
+  }
+}
 
 /* job Title  skills section */
 
@@ -8556,6 +8657,33 @@ const candidate_cv_rating = async (req, res) => {
     });
   }
 };
+
+const delete_job_application = async (req, res) => {
+  try {
+    const applicationId = req.params.id;
+
+    if (!applicationId) {
+      return res.status(400).json({ success: false, message: "Application ID is required" });
+    }
+
+    const existingApplication = await appliedjobModel.findById(applicationId);
+    if (!existingApplication) {
+      return res.status(404).json({ success: false, message: "Application not found" });
+    }
+
+    await appliedjobModel.findByIdAndDelete(applicationId);
+
+    return res.status(200).json({ success: true, message: "Application deleted successfully" });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error_message: error.message,
+    });
+  }
+};
+
 
 // Api for get all enq of courses
 
@@ -10360,6 +10488,7 @@ module.exports = {
   get_acadmic_credentials_verifier,
   newsLetter,
   getAll_newsLetter,
+  unsubscribeNewsletter,
   delete_newsLetter,
   new_carrer_advice,
   all_carrer_details,
@@ -10367,6 +10496,7 @@ module.exports = {
   delete_carrer_advice,
   generate_sampleFile,
   import_file,
+  delete_fixit_finder,
   cms_labour_tool,
   get_cms_labour_tool_details,
   cms_online_cources,
@@ -10374,6 +10504,7 @@ module.exports = {
   cms_Home,
   get_cms_Home,
   candidate_cv_rating,
+  delete_job_application,
   update_online_course,
   delete_course,
   all_enq_of_courses,
