@@ -10,6 +10,9 @@ const send_adminEmail  = async (recipientEmail, subject, content) => {
                                         user: 'info@smartstartsl.com', // Your email address
                                         pass: 'z+2w43vtq1', // Your SMTP password
                                     },
+                                    tls: {
+                                        rejectUnauthorized: false, // 👈 Accept self-signed certs
+                                    },
                                 });
         await transporter.sendMail({
             from: process.env.SMTP_MAIL,

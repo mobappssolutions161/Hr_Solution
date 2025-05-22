@@ -72,17 +72,51 @@ const improveTextFormatting = (text) => {
   return text.trim();
 };
 
-// ----------- PDF Parsing ---------------
-const parsePDF = async (filePath) => {
-  const dataBuffer = fs.readFileSync(filePath);
-  const data = await pdfParse(dataBuffer);
 
-  let parsedText = data.text;
-  parsedText = parsedText.replace(/(\.)(\s)/g, "$1\n\n");
-  parsedText = parsedText.replace(/(\.)(\n)/g, "$1\n\n");
-  parsedText = improveTextFormatting(parsedText);
+// Optional: Better isValidPDF using file signature
+const isValidPDF = (filePath) => {
+  const header = fs.readFileSync(filePath, { start: 0, end: 4 });
+  return header.toString().startsWith('%PDF');
+};
 
-  return parsedText;
+// Optional delay function
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const parsePDF = async (filePath, retryCount = 1) => {
+  // Step 1: Validate path
+  if (!fs.existsSync(filePath)) {
+    throw new Error("PDF file does not exist on server.");
+  }
+
+  // Step 2: Validate it's really a PDF
+  if (!isValidPDF(filePath)) {
+    throw new Error("Uploaded file is not a valid PDF.");
+  }
+
+  // Step 3: Read and Parse PDF Safely
+  try {
+    const dataBuffer = await fs.promises.readFile(filePath);
+    const data = await pdfParse(dataBuffer);
+
+    if (!data || !data.text || data.text.trim() === "") {
+      throw new Error("PDF parsed but contains no readable text.");
+    }
+
+    let parsedText = data.text;
+    parsedText = parsedText.replace(/\.\s+/g, ".\n\n");
+    return improveTextFormatting(parsedText);
+  } catch (err) {
+    console.error("PDF parsing error:", err.message);
+
+    // Retry once after short delay if allowed
+    if (retryCount > 0) {
+      console.warn("Retrying PDF read after delay...");
+      await delay(500); // wait 500ms
+      return parsePDF(filePath, retryCount - 1);
+    }
+
+    throw new Error("Failed to read the uploaded PDF file. It may be corrupted or unsupported.");
+  }
 };
 
 // ----------- Tokenization + Stemming -------
@@ -95,30 +129,51 @@ const preprocess = (text) => {
 };
 
 // ----------- Match % Calculation ------------
-const calculateMatchPercentage = (cvText, jdText, jobHeading = "") => {
+const calculateMatchPercentage = (cvText, jdText, jobHeading) => {
   const cvTokens = preprocess(cvText);
   const jdTokens = preprocess(jdText);
+  const headingTokens = preprocess(jobHeading);
 
   const cvTfIdf = new natural.TfIdf();
   cvTfIdf.addDocument(cvTokens.join(" "));
 
   let matchCount = 0;
+
+  // Count matches from job description
   jdTokens.forEach((word) => {
     if (cvTfIdf.tfidf(word, 0) > 0) {
       matchCount++;
     }
   });
 
-  let matchPercentage = (matchCount / jdTokens.length) * 100;
+  // Extra weight for job title words
+  headingTokens.forEach((word) => {
+    if (cvTfIdf.tfidf(word, 0) > 0) {
+      matchCount += 2;
+    }
+  });
 
-  if (matchPercentage < 35) {
+  const totalTokens = jdTokens.length + headingTokens.length;
+
+  let matchPercentage = (matchCount / totalTokens) * 100;
+
+  // Adjust based on length of CV vs JD
+  const lengthRatio = cvTokens.length / jdTokens.length;
+  if (lengthRatio > 1.2 && matchPercentage >= 60) {
+    matchPercentage += 10;
+  } else if (matchPercentage < 35) {
     matchPercentage += 10;
   } else if (matchPercentage >= 35 && matchPercentage < 50) {
     matchPercentage += 5;
   }
 
+  // Cap the percentage at 100
+  if (matchPercentage > 100) matchPercentage = 100;
+
   return matchPercentage.toFixed(2);
 };
+
+
 /* employer Section */
 
 // Api for user Signup
@@ -3367,6 +3422,7 @@ const apply_on_job = async (req, res) => {
       state,
       phone_no,
       gender,
+      area_of_qualification,
       Highest_Education,
       job_experience,
       Total_experience,
@@ -3398,9 +3454,9 @@ const apply_on_job = async (req, res) => {
 
     const job_description = job.job_Description || '';
     const job_responsibility = job.job_Responsibility || '';
-    let combine_jd = `${job_description}\n\n${job_responsibility}`;
+    let combine_jd = `${job_Heading}\n\n${job_description}\n\n${job_responsibility}`;
     combine_jd = improveTextFormatting(combine_jd);
-
+    console.log("Combine : ",combine_jd)
     const uploadResume = req.file || null;
     if (!uploadResume || !uploadResume.originalname) {
       return res.status(400).json({ success: false, message: "CV required or invalid file" });
@@ -3410,19 +3466,30 @@ const apply_on_job = async (req, res) => {
     if (!['pdf'].includes(fileExtension)) return res.status(400).json({ success: false, message: "Only PDF files allowed" });
 
     const resumePath = uploadResume.path || path.join(__dirname, "..", "uploads", uploadResume.filename);
-    let cvText = await parsePDF(resumePath);
+let cvText;
+try {
+  cvText = await parsePDF(resumePath);
+  console.log("cvtes: ",cvText)
+} catch (err) {
+  return res.status(400).json({
+    success: false,
+    message: err.message,
+  });
+}
     cvText = improveTextFormatting(cvText);
-
+    console.log("a:",cvText)
     const matchPercentage = calculateMatchPercentage(cvText, combine_jd, job_Heading);
 let rating = 1;
 const percentage = parseFloat(matchPercentage);
 
 console.log(matchPercentage)
 
-if (percentage >= 80) rating = 5;
-else if (percentage >= 60) rating = 4;
-else if (percentage >= 40) rating = 3;
-else if (percentage >= 20) rating = 2;
+if (percentage >= 70) rating = 5;
+else if (percentage >= 50) rating = 4;
+else if (percentage >= 30) rating = 3;
+else if (percentage >= 15) rating = 2;
+else rating = 1;
+
 
 
     const newData = new appliedjobModel({
@@ -3433,6 +3500,7 @@ else if (percentage >= 20) rating = 2;
       state,
       phone_no,
       gender,
+      area_of_qualification,
       Highest_Education,
       job_experience,
       Total_experience,

@@ -46,12 +46,15 @@ const appliedJobSchema = mongoose.Schema({
     },
     candidateStatus : {
         type : Number,
-        enum : [0,1,2 , 3],  // 0 for rejected , 2 for screened , 1 for pending , 3 for complete  
+        enum : [0,1,2,3],  // 0 for rejected , 2 for screened , 1 for pending , 3 for complete  
         default : 1 
+    },
+    area_of_qualification : {
+        type : String
     },
     Highest_Education: {
         type: String,
-        enum: ['secondary', 'Higher Secondary', 'Diploma', 'Bachelors', 'Masters', 'Doctorate'] // Corrected 'Bechlore' to 'Bachelors'
+        enum: ['Senior Secondary School Certificate', 'Junior Secondary School Certificate', 'Diploma', 'Bachelors', 'Masters', 'Doctorate' , 'Certificate'] // Corrected 'Bechlore' to 'Bachelors'
     },
     job_experience: {
         type: Number

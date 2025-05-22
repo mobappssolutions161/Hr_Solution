@@ -1375,6 +1375,7 @@ const getAll_candidates = async (req, res) => {
       Total_experience,
       candidate_location,
       Highest_Education,
+      area_of_qualification
     } = req.query;
     let filter = {};
     let filter1 = {};
@@ -1402,6 +1403,9 @@ const getAll_candidates = async (req, res) => {
     }
     if (Highest_Education) {
       filter1.Highest_Education = Highest_Education;
+    }
+    if (area_of_qualification) {
+      filter1.area_of_qualification = area_of_qualification;
     }
 
     // Retrieve all candidates based on the filters
@@ -1453,6 +1457,7 @@ const getAll_candidates = async (req, res) => {
       candidate_resume: candidate.uploadResume,
       relevant_experience: candidate.job_experience,
       Total_experience: candidate.Total_experience,
+      area_of_qualification : candidate.area_of_qualification,
       Highest_Education: candidate.Highest_Education,
       candidateStatus: candidate.candidateStatus,
       HomeAddress: candidate.city + candidate.state,
@@ -1908,6 +1913,7 @@ const getAllFemale_Candidate_admin = async (req, res) => {
         phone_no: candidate.phone_no,
         gender: candidate.gender,
         resume: candidate.uploadResume,
+        area_of_qualification : candidate.area_of_qualification,
         Highest_Education: candidate.Highest_Education,
         relevant_Experience: candidate.job_experience,
         Total_experience: candidate.Total_experience,
